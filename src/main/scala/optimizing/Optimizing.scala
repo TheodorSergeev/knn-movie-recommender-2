@@ -49,29 +49,27 @@ package scaling {
     val top_k = 10
 
     // compute similarities for individual users
-    val knn_user_1 = userKnn(train, top_k, 1 - 1)
-    val user_1_top_neighbors = knn_user_1._2
-    val user_1_similarities  = knn_user_1._2
+    val preproc_train = preprocDataset(train)
+    val knn_similarities = computeKnnSimilarities(preproc_train, 300)
 
-    val sim_1_1   = user_1_similarities(1 - 1)
-    val sim_1_864 = user_1_similarities(864 - 1)
-    val sim_1_886 = user_1_similarities(886 - 1)
+    val sim_1_1   = knn_similarities(1 - 1, 1 - 1)
+    val sim_1_864 = knn_similarities(1 - 1, 864 - 1)
+    val sim_1_886 = knn_similarities(1 - 1, 886 - 1)
 
     println(sim_1_1)
     println(sim_1_864)
     println(sim_1_886)
 
-
     // predictions for indivisual users
-    val pred_1_1   = knnPrediction(train, top_k, 1 - 1, 1 - 1)
-    val pred_327_2 = knnPrediction(train, top_k, 327 - 1, 2 - 1)
+    /*val pred_1_1   = knnPrediction(train, top_k, 1 - 1, 1 - 1)
+    val pred_327_2 = knnPrediction(train, 300, 327 - 1, 2 - 1)
 
     println(pred_1_1)
-    println(pred_327_2)
+    println(pred_327_2)*/
 
 
     // compute predictions for the test set and calculate MAE
-    val matr_pred = knnFullPrediction(train, test, 10)
+    /*val matr_pred = knnFullPrediction(train, test, 10)
     val mae_val = compMatrMAE(test, matr_pred)
     println(mae_val)
     
@@ -126,7 +124,7 @@ package scaling {
         println("Saving answers in: " + jsonFile)
         printToFile(json, jsonFile)
       }
-    }
+    }*/
 
     println("")
   }

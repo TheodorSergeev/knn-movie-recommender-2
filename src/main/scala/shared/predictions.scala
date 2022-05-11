@@ -227,58 +227,33 @@ package object predictions
 
   // compute cosine similarities and select top k ones for each user
   def computeKnnSimilarities(preproc_dataset: CSCMatrix[Double], k: Int): CSCMatrix[Double] = {    
-    val all_sims = computeSimilarities(preproc_dataset)
+    val sims = computeSimilarities(preproc_dataset)
     
-    // zero-out self similarities
-    for (i <- 0 to preproc_dataset.rows - 1) {
-      all_sims(i, i) = 0.0
-    }
+    for (user_id <- 0 to sims.rows - 1) {
+      // zero-out self similarities
+      sims(user_id, user_id) = 0.0
 
-    // select top k similarities
-    val top_sims = CSCMatrix.zeros[Double](all_sims.rows, all_sims.cols)
-
-    for (user_id <- 0 to all_sims.rows - 1) {
-      val user_distances = all_sims(0 to all_sims.rows - 1, user_id)
+      // select top k similarities (mark them as negative)
+      val user_distances = sims(0 to sims.rows - 1, user_id)
 
       for (top_neighbor <- argtopk(user_distances, k)) {
-        top_sims(user_id, top_neighbor) = user_distances(top_neighbor)
+        sims(user_id, top_neighbor) *= -1
       }
     }
 
-    return top_sims
+    // get rid of non-top similarities
+    for ((k,v) <- sims.activeIterator) {
+      if (v >= 0)
+        sims(k) = 0.0
+      else
+        sims(k) *= -1
+    }
+
+    return sims
   }
 
 
   // k-NN functions
-
-  // compute k-NN similarities for single user with id = userId
-  def userKnn(dataset: CSCMatrix[Double], k: Int, user_id: Int): (DenseVector[Int], DenseVector[Double]) = {
-    // compute all similarities
-    val preproc_arr = preprocDataset(dataset)
-    val distances = computeSimilarities(preproc_arr)
-    val user_distances = distances(0 to dataset.rows - 1, user_id)
-
-    // zero-out self similarities
-    user_distances(user_id) = 0.0
-
-    // select top k nearest neighbours for each user
-    val top_neighbors = DenseVector.zeros[Int](k)
-    var pos = 0
-
-    for (i <- argtopk(user_distances, k)) {
-      top_neighbors(pos) = i
-      pos += 1
-    }
-
-    // make new similarities matrix
-    val similarities = DenseVector.zeros[Double](dataset.rows)
-
-    for (i <- top_neighbors) {
-      similarities(i) = distances(user_id, i)
-    }
-
-    return (top_neighbors, similarities)
-  }
 
   // make a prediction for a single user on a single item
   def knnPrediction(dataset: CSCMatrix[Double], k: Int, user_id: Int, item_id: Int): Double = {
