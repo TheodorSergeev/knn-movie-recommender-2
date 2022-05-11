@@ -45,11 +45,8 @@ package scaling {
     val train = loadSpark(sc, conf.train(), conf.separator(), conf.users(), conf.movies())
     val test  = loadSpark(sc, conf.test (), conf.separator(), conf.users(), conf.movies())
 
-    //println(userAvgMap(train)(1))
-    //println(preprocDataset(train)(1,1))
-    val preproc_dataset = preprocDataset(train)
-    val sims = computeKnnSimilarities(preproc_dataset, 10)
-    //println(sims(1,2))
+    //val preproc_dataset = preprocDataset(train)
+    //val sims = computeKnnSimilarities(preproc_dataset, 10)
 
     // compute all similarities
     val knn_user_1 = userKnn(train, 10, 1 - 1)
@@ -64,8 +61,11 @@ package scaling {
     println(sim_1_864)
     println(sim_1_886)
 
-    val pred = knnPrediction(train, 10, 1 - 1, 1 - 1)
-    println(pred)
+    val pred_1_1 = knnPrediction(train, 10, 1 - 1, 1 - 1)
+    println(pred_1_1)
+
+    //val pred_327_2 = knnPrediction(train, 10, 327 - 1, 2 - 1)
+    //println(pred_327_2)
 
     val matr_pred = knnFullPrediction(train, test, 10)
     val mae = compMatrMAE(test, matr_pred)
