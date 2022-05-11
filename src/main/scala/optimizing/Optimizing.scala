@@ -45,11 +45,11 @@ package scaling {
     val train = loadSpark(sc, conf.train(), conf.separator(), conf.users(), conf.movies())
     val test  = loadSpark(sc, conf.test (), conf.separator(), conf.users(), conf.movies())
 
-    //val preproc_dataset = preprocDataset(train)
-    //val sims = computeKnnSimilarities(preproc_dataset, 10)
 
-    // compute all similarities
-    val knn_user_1 = userKnn(train, 10, 1 - 1)
+    val top_k = 10
+
+    // compute similarities for individual users
+    val knn_user_1 = userKnn(train, top_k, 1 - 1)
     val user_1_top_neighbors = knn_user_1._2
     val user_1_similarities  = knn_user_1._2
 
@@ -61,19 +61,26 @@ package scaling {
     println(sim_1_864)
     println(sim_1_886)
 
-    val pred_1_1 = knnPrediction(train, 10, 1 - 1, 1 - 1)
+
+    // predictions for indivisual users
+    val pred_1_1   = knnPrediction(train, top_k, 1 - 1, 1 - 1)
+    val pred_327_2 = knnPrediction(train, top_k, 327 - 1, 2 - 1)
+
     println(pred_1_1)
+    println(pred_327_2)
 
-    //val pred_327_2 = knnPrediction(train, 10, 327 - 1, 2 - 1)
-    //println(pred_327_2)
 
+    // compute predictions for the test set and calculate MAE
     val matr_pred = knnFullPrediction(train, test, 10)
-    val mae = compMatrMAE(test, matr_pred)
-    println(mae)
+    val mae_val = compMatrMAE(test, matr_pred)
+    println(mae_val)
+    
 
-    /*
+    // measure the speed of prediction and MAE calculation
     val measurements = (1 to conf.num_measurements()).map(x => timingInMs(() => {
       0.0
+      //val matr_pred = knnFullPrediction(train, test, 300)
+      //compMatrMAE(test, matr_pred)
     }))
     val timings = measurements.map(t => t._2)
     val mae = measurements(0)._1
@@ -92,24 +99,24 @@ package scaling {
       case Some(jsonFile) => {
         val answers = ujson.Obj(
           "Meta" -> ujson.Obj(
-            "train" -> ujson.Str(conf.train()),
-            "test" -> ujson.Str(conf.test()),
-            "users" -> ujson.Num(conf.users()),
-            "movies" -> ujson.Num(conf.movies()),
-            "master" -> ujson.Str(conf.master()),
+            "train"            -> ujson.Str(conf.train ()),
+            "test"             -> ujson.Str(conf.test  ()),
+            "users"            -> ujson.Num(conf.users ()),
+            "movies"           -> ujson.Num(conf.movies()),
+            "master"           -> ujson.Str(conf.master()),
             "num_measurements" -> ujson.Num(conf.num_measurements())
           ),
           "BR.1" -> ujson.Obj(
-            "1.k10u1v1" -> ujson.Num(0.0),
-            "2.k10u1v864" -> ujson.Num(0.0),
-            "3.k10u1v886" -> ujson.Num(0.0),
-            "4.PredUser1Item1" -> ujson.Num(0.0),
-            "5.PredUser327Item2" -> ujson.Num(0.0),
-            "6.Mae" -> ujson.Num(0.0)
+            "1.k10u1v1"          -> ujson.Num(sim_1_1),
+            "2.k10u1v864"        -> ujson.Num(sim_1_864),
+            "3.k10u1v886"        -> ujson.Num(sim_1_886),
+            "4.PredUser1Item1"   -> ujson.Num(pred_1_1),
+            "5.PredUser327Item2" -> ujson.Num(pred_327_2),
+            "6.Mae"              -> ujson.Num(mae)
           ),
           "BR.2" ->  ujson.Obj(
             "average (ms)" -> ujson.Num(mean(timings)), // Datatype of answer: Double
-            "stddev (ms)" -> ujson.Num(std(timings)) // Datatype of answer: Double
+            "stddev (ms)"  -> ujson.Num(std (timings))  // Datatype of answer: Double
           )
         )
 
@@ -121,7 +128,6 @@ package scaling {
       }
     }
 
-    */
     println("")
   }
 

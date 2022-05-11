@@ -296,16 +296,15 @@ package object predictions
     }
     val denominator = abs(top_sims) * user_items_if_rated
 
-    //val item_dev = nominator /:/ denominator
-
     // prediction
+    val user_avg_vec = userAvgMap(dataset)
+
     val item_dev = 
       if (denominator(user_id, item_id) == 0.0) 
         0.0 
       else 
         nominator(user_id, item_id) / denominator(user_id, item_id)
 
-    val user_avg_vec = userAvgMap(dataset)
     val pred_rating = baselinePrediction(user_avg_vec(user_id), item_dev)
 
     return pred_rating
@@ -331,13 +330,18 @@ package object predictions
     val user_avg_vec = userAvgMap(dataset_train)
 
     val builder = new CSCMatrix.Builder[Double](rows=dataset_train.rows, cols=dataset_train.cols)
+
+    //var mae = 0.0
+    //var counter = 0
+
     for ((k,v) <- dataset_test.activeIterator) {
       val user_id = k._1
       val item_id = k._2
 
-      if (dataset_test(user_id, item_id) == 0.0) 
+      if (dataset_test(user_id, item_id) == 0.0) {
+        // skip non-rated items
         builder.add(user_id, item_id, 0.0)
-      else {
+      } else {
         val item_dev = 
           if (denominator(user_id, item_id) == 0.0) 
             0.0
@@ -347,59 +351,34 @@ package object predictions
         val pred_rating = baselinePrediction(user_avg_vec(user_id), item_dev)
 
         builder.add(user_id, item_id, pred_rating)
+
+        //mae += scala.math.abs(dataset_test(user_id, item_id) - pred_rating)
+        //counter += 1
       }
         
     }
 
     val pred_test = builder.result()
+    
+    // mae /= counter
+    // println(mae)
 
     return pred_test
   }
 
   def compMatrMAE(real: CSCMatrix[Double], pred: CSCMatrix[Double]): Double = {
-    return globalAvgRating(abs(real - pred))
+    var error = 0.0
+    var counter = 0
+
+    for ((k,v) <- real.activeIterator) {
+      error += scala.math.abs(real(k._1, k._2) - pred(k._1, k._2))
+      counter += 1
+    }
+
+    // globalAvgRating(abs(real - pred))
+    // doesn't work for some reason?
+    // it is either the minus operation or abs
+
+    return error / counter 
   }
-
-  /*
-  // recommend top movies based on k-NN
-  def recommend(dataset: CSCMatrix[Double], k: Int, user_id: Int): DenseVector[Int] = {
-    // dataset contains all users from train and test?
-
-    val user_avg_vec = userAvgMap(dataset)
-
-    // normalized rating deviation
-    val norm_rating_dev_builder = new CSCMatrix.Builder[Double](rows=dataset.rows, cols=dataset.cols)
-    val user_item_if_rated_builder = new CSCMatrix.Builder[Double](rows=dataset.rows, cols=dataset.cols)
-
-    var new_el = 0.0
-
-    for ((k,v) <- dataset.activeIterator) {
-      norm_rating_dev_builder.add(k._1, k._2, 
-        normalizedDev(dataset(k._1, k._2), user_avg_vec(k._1))
-      )
-
-      if (dataset(k._1, k._2) != 0)
-        new_el = 1.0
-      else
-        new_el = 0.0
-
-      user_item_if_rated_builder.add(k._1, k._2, new_el)
-    }  
-
-    val norm_rating_dev    = norm_rating_dev_builder   .result()
-    val user_item_if_rated = user_item_if_rated_builder.result()
-
-    // similarities
-    val user_similarities = similaritiesKnn(dataset, k)._2
-
-    // user-specific weighted-sum deviation for item i
-    val numenator   = user_similarities * norm_rating_dev
-    var denominator = user_similarities * user_item_if_rated
-    val item_rating_dev = numenator /:/ denominator
-
-    // personalized rating
-    val predictions = user_avg_vec + item_rating_dev * scaled2_rating
-
-    return predictions
-  }*/
 }
