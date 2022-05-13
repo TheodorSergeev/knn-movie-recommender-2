@@ -47,10 +47,13 @@ package scaling {
 
 
     val top_k = 10
+    val large_top_k = 300
+    // todo: move the "-1" for breeze indexing somewhere
+        
 
     // compute similarities for individual users
     val preproc_train = preprocDataset(train)
-    val knn_similarities = computeKnnSimilarities(preproc_train, 300)
+    val knn_similarities = computeKnnSimilarities(preproc_train, top_k)
 
     val sim_1_1   = knn_similarities(1 - 1, 1 - 1)
     val sim_1_864 = knn_similarities(1 - 1, 864 - 1)
@@ -60,25 +63,18 @@ package scaling {
     println(sim_1_864)
     println(sim_1_886)
 
+
     // predictions for indivisual users
-    /*val pred_1_1   = knnPrediction(train, top_k, 1 - 1, 1 - 1)
-    val pred_327_2 = knnPrediction(train, 300, 327 - 1, 2 - 1)
-
+    val pred_1_1   = knnPrediction(train, top_k, 1 - 1, 1 - 1)
     println(pred_1_1)
-    println(pred_327_2)*/
 
+    val pred_327_2 = knnPrediction(train, top_k, 327 - 1, 2 - 1)
+    println(pred_327_2)
 
-    // compute predictions for the test set and calculate MAE
-    /*val matr_pred = knnFullPrediction(train, test, 10)
-    val mae_val = compMatrMAE(test, matr_pred)
-    println(mae_val)
-    
 
     // measure the speed of prediction and MAE calculation
     val measurements = (1 to conf.num_measurements()).map(x => timingInMs(() => {
-      0.0
-      //val matr_pred = knnFullPrediction(train, test, 300)
-      //compMatrMAE(test, matr_pred)
+      compMatrMAE(test, knnFullPrediction(train, test, large_top_k))
     }))
     val timings = measurements.map(t => t._2)
     val mae = measurements(0)._1
@@ -124,7 +120,7 @@ package scaling {
         println("Saving answers in: " + jsonFile)
         printToFile(json, jsonFile)
       }
-    }*/
+    }
 
     println("")
   }

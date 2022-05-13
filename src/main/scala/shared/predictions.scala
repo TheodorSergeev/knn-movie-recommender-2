@@ -5,6 +5,7 @@ import breeze.numerics._
 import scala.io.Source
 import scala.collection.mutable.ArrayBuffer
 import org.apache.spark.SparkContext
+import java.security.InvalidParameterException
 
 package object predictions
 {
@@ -160,8 +161,6 @@ package object predictions
   }
 
   def userAvgMap(dataset: CSCMatrix[Double]): DenseVector[Double] = {
-    val glob_avg = globalAvgRating(dataset)
-
     val num_users = dataset.rows
     var sum_usr_rating = DenseVector.zeros[Double](num_users)
     var usr_rating_num = DenseVector.zeros[Double](num_users)
@@ -170,9 +169,42 @@ package object predictions
       // val usr_id = k._1
       sum_usr_rating(k._1) += v
       usr_rating_num(k._1) += 1
-    }  
+    }
 
+    /*
+    val glob_avg = globalAvgRating(dataset)
+
+    for (user_id <- 0 to dataset.cols - 1) {
+      if (usr_rating_num(user_id) != 0.0)
+        sum_usr_rating(user_id) /= usr_rating_num(user_id)
+      else 
+        sum_usr_rating(user_id) = glob_avg
+    }*/
+
+    // undefined if user hasn't rated anything?
     sum_usr_rating /:/ usr_rating_num
+  }
+
+
+  // custom matrix multiplication to avoid using breeze - memory problems
+
+  def matrProd(matr1: CSCMatrix[Double], matr2: CSCMatrix[Double]): CSCMatrix[Double] = {
+    if (matr1.cols != matr2.rows)
+      throw new InvalidParameterException("Matrix sizes are incorrect")
+    
+    val builder = new CSCMatrix.Builder[Double](rows=matr1.rows, cols=matr2.cols)
+
+    for (x <- 0 to matr2.cols - 1) {
+      val mult = matr1 * matr2(0 to matr2.rows - 1, x)
+
+      for (y <- 0 to matr1.rows - 1) {
+        builder.add(y, x, mult(y))
+      }
+    }
+    return builder.result()
+    
+    // memory issues
+    // return matr1 * matr2
   }
 
 
@@ -186,7 +218,7 @@ package object predictions
 
     for ((k,v) <- dataset.activeIterator) {
       // val usr_id = k._1
-      scaled_rating_builder.add(k._1, k._2, normalizedDev(dataset(k._1, k._2), avg_usr_map(k._1)))
+      scaled_rating_builder.add(k._1, k._2, normalizedDev(dataset(k), avg_usr_map(k._1)))
     }  
 
     return scaled_rating_builder.result()
@@ -220,36 +252,32 @@ package object predictions
     return preproc_dataset
   }
 
-  // compute cosine similarities
-  def computeSimilarities(preproc_dataset: CSCMatrix[Double]): CSCMatrix[Double] = {    
-    return preproc_dataset * preproc_dataset.t
-  }
-
   // compute cosine similarities and select top k ones for each user
-  def computeKnnSimilarities(preproc_dataset: CSCMatrix[Double], k: Int): CSCMatrix[Double] = {    
-    val sims = computeSimilarities(preproc_dataset)
-    
-    for (user_id <- 0 to sims.rows - 1) {
-      // zero-out self similarities
-      sims(user_id, user_id) = 0.0
+  def computeKnnSimilarities(preproc_dataset: CSCMatrix[Double], k: Int): CSCMatrix[Double] = {  
+    // matrix multiplication!
+    //val all_sims = preproc_dataset * preproc_dataset.t        // compute cosine similarities
+    val all_sims = matrProd(preproc_dataset, preproc_dataset.t) // compute cosine similarities
 
-      // select top k similarities (mark them as negative)
-      val user_distances = sims(0 to sims.rows - 1, user_id)
+    // zero-out self similarities
+    for (i <- 0 to preproc_dataset.rows - 1) {
+      all_sims(i, i) = 0.0
+    }
+
+    // select top k similarities
+    val top_sims = CSCMatrix.zeros[Double](all_sims.rows, all_sims.cols)
+
+    // todo: increase speed if possible!
+    // this is the bottleneck
+
+    for (user_id <- 0 to all_sims.rows - 1) {
+      val user_distances = all_sims(0 to all_sims.rows - 1, user_id)
 
       for (top_neighbor <- argtopk(user_distances, k)) {
-        sims(user_id, top_neighbor) *= -1
+        top_sims(user_id, top_neighbor) = user_distances(top_neighbor)
       }
     }
 
-    // get rid of non-top similarities
-    for ((k,v) <- sims.activeIterator) {
-      if (v >= 0)
-        sims(k) = 0.0
-      else
-        sims(k) *= -1
-    }
-
-    return sims
+    return top_sims
   }
 
 
@@ -262,14 +290,19 @@ package object predictions
     
     // user-specific weighted-sum deviation matrix
     val scaled_matrix = normalizedDevMatrix(dataset)
-    val nominator = top_sims * scaled_matrix
+
+    // matrix multiplication!
+    //val nominator = top_sims * scaled_matrix
+    val nominator = matrProd(top_sims, scaled_matrix)
   
     val user_items_if_rated = CSCMatrix.zeros[Double](dataset.rows, dataset.cols)
     for ((k,v) <- dataset.activeIterator) {
       if (dataset(k._1, k._2) != 0.0)
         user_items_if_rated(k._1, k._2) = 1.0
     }
-    val denominator = abs(top_sims) * user_items_if_rated
+    // matrix multiplication!
+    //val denominator = abs(top_sims) * user_items_if_rated
+    val denominator = matrProd(abs(top_sims), user_items_if_rated)
 
     // prediction
     val user_avg_vec = userAvgMap(dataset)
@@ -281,7 +314,6 @@ package object predictions
         nominator(user_id, item_id) / denominator(user_id, item_id)
 
     val pred_rating = baselinePrediction(user_avg_vec(user_id), item_dev)
-
     return pred_rating
   }
 
@@ -292,14 +324,18 @@ package object predictions
     
     // user-specific weighted-sum deviation matrix
     val scaled_matrix = normalizedDevMatrix(dataset_train)
-    val nominator = top_sims * scaled_matrix
+    // matrix multiplication!
+    // val nominator = top_sims * scaled_matrix
+    val nominator = matrProd(top_sims, scaled_matrix)
   
     val user_items_if_rated = CSCMatrix.zeros[Double](dataset_train.rows, dataset_train.cols)
     for ((k,v) <- dataset_train.activeIterator) {
       if (dataset_train(k._1, k._2) != 0.0)
         user_items_if_rated(k._1, k._2) = 1.0
     }
-    val denominator = abs(top_sims) * user_items_if_rated
+    // matrix multiplication!
+    //val denominator = abs(top_sims) * user_items_if_rated
+    val denominator = matrProd(abs(top_sims), user_items_if_rated)
 
     // prediction
     val user_avg_vec = userAvgMap(dataset_train)
