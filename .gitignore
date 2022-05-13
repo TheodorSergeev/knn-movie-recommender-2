@@ -1,8 +1,11 @@
+.vscode/
+.metals/
 .DS_Store
 .bsp
 **/*.swp
 data/.DS_Store
 data/ml-100k
+data/ml-1m
 data/ml-25m
 project/project
 project/target
