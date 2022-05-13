@@ -28,23 +28,35 @@ class OptimizingTests extends AnyFunSuite with BeforeAndAfterAll {
    // Add assertions with the answer you expect from your code, up to the 4th
    // decimal after the (floating) point, on data/ml-100k/u2.base (as loaded above).
    test("kNN predictor with k=10") { 
+    val top_k = 10
+
+    val preproc_train = preprocDataset(train2)
+    val knn_similarities = computeKnnSimilarities(preproc_train, top_k)
+
+    val sim_1_1   = knn_similarities(1 - 1, 1 - 1)
+    val sim_1_864 = knn_similarities(1 - 1, 864 - 1)
+    val sim_1_886 = knn_similarities(1 - 1, 886 - 1)
+    val pred_1_1   = knnPrediction(train2, top_k, 1 - 1, 1 - 1)
+    val pred_327_2 = knnPrediction(train2, top_k, 327 - 1, 2 - 1)
+    val mae_10 = compMatrMAE(test2, knnFullPrediction(train2, test2, top_k))
+
 
      // Similarity between user 1 and itself
-     assert(within(1.0, 0.0, 0.0001))
+     assert(within(sim_1_1, 0.0, 0.0001))
  
      // Similarity between user 1 and 864
-     assert(within(1.0, 0.0, 0.0001))
+     assert(within(sim_1_864, 0.2423, 0.0001))
 
      // Similarity between user 1 and 886
-     assert(within(1.0, 0.0, 0.0001))
+     assert(within(sim_1_886, 0.0, 0.0001))
 
      // Prediction user 1 and item 1
-     assert(within(1.0, 0.0, 0.0001))
+     assert(within(pred_1_1, 4.3190, 0.0001))
 
      // Prediction user 327 and item 2
-     assert(within(1.0, 0.0, 0.0001))
+     assert(within(pred_327_2, 2.6994, 0.0001))
 
      // MAE on test2
-     assert(within(1.0, 0.0, 0.0001)) 
+     assert(within(mae_10, 0.8287, 0.0001)) 
    } 
 }

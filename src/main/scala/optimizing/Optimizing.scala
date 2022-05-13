@@ -66,18 +66,23 @@ package scaling {
 
     // predictions for indivisual users
     val pred_1_1   = knnPrediction(train, top_k, 1 - 1, 1 - 1)
-    println(pred_1_1)
-
     val pred_327_2 = knnPrediction(train, top_k, 327 - 1, 2 - 1)
+  
+    println(pred_1_1)
     println(pred_327_2)
 
 
-    // measure the speed of prediction and MAE calculation
+    // mae with k = 10
+    val mae_10 = compMatrMAE(test, knnFullPrediction(train, test, top_k))
+    println(mae_10)
+
+
+    // measure the speed of prediction and MAE calculation for k = 300
     val measurements = (1 to conf.num_measurements()).map(x => timingInMs(() => {
       compMatrMAE(test, knnFullPrediction(train, test, large_top_k))
     }))
     val timings = measurements.map(t => t._2)
-    val mae = measurements(0)._1
+    val mae_300 = measurements(0)._1
 
 
     // Save answers as JSON
@@ -106,7 +111,7 @@ package scaling {
             "3.k10u1v886"        -> ujson.Num(sim_1_886),
             "4.PredUser1Item1"   -> ujson.Num(pred_1_1),
             "5.PredUser327Item2" -> ujson.Num(pred_327_2),
-            "6.Mae"              -> ujson.Num(mae)
+            "6.Mae"              -> ujson.Num(mae_10) // todo: or mae_300?
           ),
           "BR.2" ->  ujson.Obj(
             "average (ms)" -> ujson.Num(mean(timings)), // Datatype of answer: Double
