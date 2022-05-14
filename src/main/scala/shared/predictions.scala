@@ -1,3 +1,5 @@
+// sbt "runMain scaling.Optimizing --train data/ml-100k/u2.base --test data/ml-100k/u2.test --json optimizing-100k.json --master local[1] --users 943 --movies 1682 --num_measurements 3"
+// sbt "runMain scaling.Optimizing --train data/ml-11m/rb.train --test data/ml-1m/rb.test --json optimizing-1m.json --master local[1] --num_measurements 1"
 package shared
 
 import breeze.linalg._
@@ -171,18 +173,20 @@ package object predictions
       usr_rating_num(k._1) += 1
     }
 
-    /*
+    
     val glob_avg = globalAvgRating(dataset)
 
-    for (user_id <- 0 to dataset.cols - 1) {
+    for (user_id <- 0 to dataset.rows - 1) {
       if (usr_rating_num(user_id) != 0.0)
         sum_usr_rating(user_id) /= usr_rating_num(user_id)
       else 
         sum_usr_rating(user_id) = glob_avg
-    }*/
+    }
+
+    sum_usr_rating
 
     // undefined if user hasn't rated anything?
-    sum_usr_rating /:/ usr_rating_num
+    //um_usr_rating /:/ usr_rating_num
   }
 
 
