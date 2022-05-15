@@ -1,3 +1,5 @@
+// sbt "runMain scaling.Optimizing --train data/ml-100k/u2.base --test data/ml-100k/u2.test --json optimizing-100k.json --master local[1] --users 943 --movies 1682 --num_measurements 3"
+// sbt -mem 4096 "runMain scaling.Optimizing --train data/ml-1m/rb.train --test data/ml-1m/rb.test --json optimizing-1m.json --master local[1] --num_measurements 1 --separator :: --users 6040 --movies 3952"
 import org.rogach.scallop._
 import breeze.linalg._
 import breeze.numerics._
@@ -80,7 +82,7 @@ package scaling {
 
 
     // --- k = 300 ---
-    /*println("--- k = 300 ---")
+    println("--- k = 300 ---")
 
     // measure the speed of prediction and MAE calculation for k = 300
     val large_top_k = 300
@@ -89,9 +91,8 @@ package scaling {
     }))
     val timings = measurements.map(t => t._2)
     val mae_300 = measurements(0)._1
-    println(mean(timings))*/
+    println(mean(timings))
 
-  /*
     // Save answers as JSON
     def printToFile(content: String, location: String = "./answers.json") =
       Some(new java.io.PrintWriter(location)).foreach{
@@ -133,7 +134,7 @@ package scaling {
         printToFile(json, jsonFile)
       }
     }
-  */
+
     println("")
   }
 
