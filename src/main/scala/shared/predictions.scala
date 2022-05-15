@@ -264,35 +264,26 @@ package object predictions
   // compute cosine similarities and select top k ones for each user
   def computeKnnSimilarities(scaled_rating: CSCMatrix[Double], k: Int): CSCMatrix[Double] = { 
     val preproc_dataset = preprocDataset(scaled_rating)   
-    val sims = matrProd(preproc_dataset, preproc_dataset.t)
-    
-    var user_id = 0
+    val all_sims = matrProd(preproc_dataset, preproc_dataset.t) // compute cosine similarities
 
-    while (user_id < sims.rows) {
-      // zero-out self similarities
-      sims(user_id, user_id) = 0.0
+    // zero-out self similarities
+    for (i <- 0 to preproc_dataset.rows - 1) {
+      all_sims(i, i) = 0.0
+    }
 
-      // select top k similarities (mark them as negative)
-      val user_distances = sims(0 to sims.rows - 1, user_id)
+    // select top k similarities
+    val top_sims = CSCMatrix.zeros[Double](all_sims.rows, all_sims.cols)
+
+    for (user_id <- 0 to all_sims.rows - 1) {
+      val user_distances = all_sims(0 to all_sims.rows - 1, user_id)
 
       for (top_neighbor <- argtopk(user_distances, k)) {
-        sims(user_id, top_neighbor) *= -1
+        top_sims(user_id, top_neighbor) = user_distances(top_neighbor)
       }
-
-      user_id += 1
     }
 
-    // get rid of non-top similarities
-    for ((k,v) <- sims.activeIterator) {
-      if (v >= 0)
-        sims(k) = 0.0
-      else
-        sims(k) *= -1
-    }
-
-    return sims
+    return top_sims
   }
-
 
 
   // k-NN functions
@@ -359,7 +350,6 @@ package object predictions
   def compMatrMAE(test: CSCMatrix[Double], pred: CSCMatrix[Double]): Double = {
     var error = 0.0
     var counter = 0
-
 
     for ((k,v) <- test.activeIterator) {  // skips items that are not rated in test
       error += scala.math.abs(test(k._1, k._2) - pred(k._1, k._2))
