@@ -336,4 +336,97 @@ package object predictions
 
     return error / counter 
   }
+
+
+
+  //================================================================================================
+  //============================================= Exact ==============================================
+  //================================================================================================
+
+
+
+  def parallelKNNComputations(X:CSCMatrix[Double], sc:SparkContext, k:Int):CSCMatrix[Double]= {
+    val preproc = preprocDataset(X)
+    val br = sc.broadcast(preproc)
+    val numUsers = X.rows
+
+    def topK(u: Int): SparseVector[Double]= {
+      val preprocBr = br.value
+      val kSim = SparseVector[Double](Array.tabulate(numUsers)(_=>0.0))
+      val userSim = preprocBr * preprocBr(u, 0 until preprocBr.cols).t
+      userSim(u) = 0
+      for (v <- argtopk(userSim, k)) {
+        kSim.update(v, userSim(v))
+      }
+      kSim(u) = 0
+      kSim
+
+    }
+    val kSims = sc.parallelize(0 until numUsers).map(topK).collect()
+    val knn = new CSCMatrix.Builder[Double](rows = numUsers, cols = numUsers)
+    for(u <- 0 until numUsers){
+      val userKsim = kSims(u)
+      for(v <- 0 until numUsers) knn.add(u,v,userKsim(v))
+    }
+    knn.result()
+
+  }
+
+  def knnFullPredictionSpark(dataset_train: CSCMatrix[Double], dataset_test: CSCMatrix[Double], k: Int, sc: SparkContext): (CSCMatrix[Double], CSCMatrix[Double]) = {
+    var start = 0.0
+    var end = 0.0
+
+    // --- user averages ---
+    //start = System.nanoTime()
+    val user_avg_vec = userAvgMap(dataset_train)
+    //println("user_avg_vec ", (System.nanoTime() - start) / 1e9)
+
+
+    // --- similarities ---
+    //start = System.nanoTime()
+    val scaled_rating = normalizedDevMatrix(dataset_train, user_avg_vec) // user-specific weighted-sum deviation matrix
+    val top_sims = parallelKNNComputations(scaled_rating, sc, k)
+    //println("top sims     ", (System.nanoTime() - start) / 1e9)
+
+    // --- nominator ---
+    //start = System.nanoTime()
+    val nominator = matrProd(top_sims, scaled_rating)
+    //println("nominator    ", (System.nanoTime() - start) / 1e9)
+
+    // --- denominator ---
+    //start = System.nanoTime()
+    val user_items_if_rated = dataset_train.mapActiveValues(_ => 1.0)
+    val denominator = matrProd(abs(top_sims), user_items_if_rated)
+    //println("denominator  ", (System.nanoTime() - start) / 1e9)
+
+    // prediction
+    //start = System.nanoTime()
+    val builder = new CSCMatrix.Builder[Double](rows=dataset_train.rows, cols=dataset_train.cols)
+
+    var user_id = 0
+    var item_id = 0
+
+    while (user_id < dataset_train.rows) {
+      while (item_id < dataset_train.cols) {
+        val item_dev =
+          if (denominator(user_id, item_id) == 0.0)
+            0.0
+          else
+            nominator(user_id, item_id) / denominator(user_id, item_id)
+
+        val pred_rating = baselinePrediction(user_avg_vec(user_id), item_dev)
+
+        builder.add(user_id, item_id, pred_rating)
+
+        item_id += 1
+      }
+
+      item_id = 0
+      user_id += 1
+    }
+
+    val pred_test = builder.result()
+    //println("builder ", (System.nanoTime() - start) / 1e9)
+    return (top_sims, pred_test)
+  }
 }
