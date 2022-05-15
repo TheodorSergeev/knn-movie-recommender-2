@@ -1,0 +1,22 @@
+{
+    "Meta": {
+        "train": "data/ml-1m/rb.train",
+        "test": "data/ml-1m/rb.test",
+        "users": 6040,
+        "movies": 3952,
+        "master": "local[1]",
+        "num_measurements": 1
+    },
+    "BR.1": {
+        "1.k10u1v1": 0,
+        "2.k10u1v864": 0,
+        "3.k10u1v886": 0,
+        "4.PredUser1Item1": 5,
+        "5.PredUser327Item2": 3.6946902654867255,
+        "6.Mae": 0.8151921655546362
+    },
+    "BR.2": {
+        "average (ms)": 58981.246653,
+        "stddev (ms)": 0
+    }
+}
