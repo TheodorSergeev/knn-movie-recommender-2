@@ -176,17 +176,18 @@ package object predictions
     
     val glob_avg = globalAvgRating(dataset)
 
-    for (user_id <- 0 to dataset.rows - 1) {
+    var user_id = 0
+
+    while (user_id < dataset.rows) {
       if (usr_rating_num(user_id) != 0.0)
         sum_usr_rating(user_id) /= usr_rating_num(user_id)
       else 
         sum_usr_rating(user_id) = glob_avg
+
+      user_id += 1
     }
 
     sum_usr_rating
-
-    // undefined if user hasn't rated anything?
-    //um_usr_rating /:/ usr_rating_num
   }
 
 
@@ -198,13 +199,22 @@ package object predictions
     
     val builder = new CSCMatrix.Builder[Double](rows=matr1.rows, cols=matr2.cols)
 
-    for (x <- 0 to matr2.cols - 1) {
+    // todo: speed up
+    var x = 0
+    var y = 0
+
+    while (x < matr2.cols) {
       val mult = matr1 * matr2(0 to matr2.rows - 1, x)
 
-      for (y <- 0 to matr1.rows - 1) {
+      while (y < matr1.rows) {
         builder.add(y, x, mult(y))
+        y += 1
       }
+
+      y = 0
+      x += 1
     }
+    
     return builder.result()
     
     // memory issues
@@ -240,8 +250,7 @@ package object predictions
     val builder = new CSCMatrix.Builder[Double](rows=scaled_rating.rows, cols=scaled_rating.cols)
 
     for ((k,v) <- scaled_rating.activeIterator) {
-      val denom = denominator(k._1) // to avoid calculating twice
-
+      val denom = denominator(k._1)
       if (denom != 0.0)
         builder.add(k._1, k._2, scaled_rating(k._1, k._2) / denom)
       else
@@ -257,7 +266,9 @@ package object predictions
     val preproc_dataset = preprocDataset(scaled_rating)   
     val sims = matrProd(preproc_dataset, preproc_dataset.t)
     
-    for (user_id <- 0 to sims.rows - 1) {
+    var user_id = 0
+
+    while (user_id < sims.rows) {
       // zero-out self similarities
       sims(user_id, user_id) = 0.0
 
@@ -267,6 +278,8 @@ package object predictions
       for (top_neighbor <- argtopk(user_distances, k)) {
         sims(user_id, top_neighbor) *= -1
       }
+
+      user_id += 1
     }
 
     // get rid of non-top similarities
@@ -299,37 +312,43 @@ package object predictions
     start = System.nanoTime() 
     val scaled_rating = normalizedDevMatrix(dataset_train, user_avg_vec) // user-specific weighted-sum deviation matrix
     val top_sims = computeKnnSimilarities(scaled_rating, k)
-    println("top sims ", (System.nanoTime() - start) / 1e9)
+    println("top sims     ", (System.nanoTime() - start) / 1e9)
 
     // --- nominator ---
     start = System.nanoTime() 
     val nominator = matrProd(top_sims, scaled_rating)
-    println("nominator ", (System.nanoTime() - start) / 1e9)
+    println("nominator    ", (System.nanoTime() - start) / 1e9)
 
     // --- denominator ---
     start = System.nanoTime() 
     val user_items_if_rated = dataset_train.mapActiveValues(_ => 1.0)
     val denominator = matrProd(abs(top_sims), user_items_if_rated)
-    println("denominator ", (System.nanoTime() - start) / 1e9)
+    println("denominator  ", (System.nanoTime() - start) / 1e9)
 
     // prediction
-    
     start = System.nanoTime() 
     val builder = new CSCMatrix.Builder[Double](rows=dataset_train.rows, cols=dataset_train.cols)
 
-    for ((k,v) <- dataset_test.activeIterator) {
-      val user_id = k._1
-      val item_id = k._2
+    var user_id = 0
+    var item_id = 0
 
-      val item_dev = 
-        if (denominator(user_id, item_id) == 0.0) 
-          0.0
-        else 
-          nominator(user_id, item_id) / denominator(user_id, item_id)
-      
-      val pred_rating = baselinePrediction(user_avg_vec(user_id), item_dev)
+    while (user_id < dataset_train.rows) {
+      while (item_id < dataset_train.cols) {
+        val item_dev = 
+          if (denominator(user_id, item_id) == 0.0) 
+            0.0
+          else 
+            nominator(user_id, item_id) / denominator(user_id, item_id)
+        
+        val pred_rating = baselinePrediction(user_avg_vec(user_id), item_dev)
 
-      builder.add(user_id, item_id, pred_rating)
+        builder.add(user_id, item_id, pred_rating)
+
+        item_id += 1
+      }
+
+      item_id = 0
+      user_id += 1
     }
 
     val pred_test = builder.result()
@@ -337,16 +356,14 @@ package object predictions
     return (top_sims, pred_test)
   }
 
-  def compMatrMAE(real: CSCMatrix[Double], pred: CSCMatrix[Double]): Double = {
+  def compMatrMAE(test: CSCMatrix[Double], pred: CSCMatrix[Double]): Double = {
     var error = 0.0
     var counter = 0
 
-    for ((k,v) <- real.activeIterator) {
-      // skip items that are not rated in test
-      if (pred(k._1, k._2) != 0.0) {
-        error += scala.math.abs(real(k._1, k._2) - pred(k._1, k._2))
-        counter += 1
-      }
+
+    for ((k,v) <- test.activeIterator) {  // skips items that are not rated in test
+      error += scala.math.abs(test(k._1, k._2) - pred(k._1, k._2))
+      counter += 1
     }
 
     return error / counter 
