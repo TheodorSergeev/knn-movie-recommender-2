@@ -353,7 +353,7 @@ package object predictions
     def topK(u: Int): SparseVector[Double]= {
       val preprocBr = br.value
       val kSim = SparseVector[Double](Array.tabulate(numUsers)(_=>0.0))
-      val userSim = preprocBr * preprocBr(u, 0 until preprocBr.cols).t
+      val userSim = preprocBr * preprocBr(u, 0 until preprocBr.cols).t.toDenseVector
       userSim(u) = 0
       for (v <- argtopk(userSim, k)) {
         kSim.update(v, userSim(v))
