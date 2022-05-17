@@ -1,3 +1,4 @@
+// sbt "runMain distributed.Approximate --train data/ml-100k/u2.base --test data/ml-100k/u2.test --json approximate-100k-4-k10-r2.json --k 10 --master local[4] --users 943 --movies 1682 --partitions 10 --replication 2"
 import org.rogach.scallop._
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
@@ -64,6 +65,27 @@ object Approximate {
       conf.partitions(), 
       conf.replication()
     )
+
+    val top_k = 10
+    val approxRes = tmp_approxKnnFullPredictionSpark(train, test, top_k, sc, conf.partitions(), conf.replication())
+    val approxSims = approxRes._1
+    val approxPreds = approxRes._2
+
+    val sim_1_1   = approxSims(1 - 1, 1 - 1)
+    val sim_1_864 = approxSims(1 - 1, 864 - 1)
+    val sim_1_886 = approxSims(1 - 1, 886 - 1)
+    val pred_1_1   = approxPreds(1 - 1, 1 - 1)
+    val pred_327_2 = approxPreds(327 - 1, 2 - 1)
+    val mae_10 = compMatrMAE(test, approxPreds)
+
+    println(sim_1_1)
+    println(sim_1_864)
+    println(sim_1_886)
+    println(pred_1_1)
+    println(pred_327_2)
+    println(mae_10)
+
+    /*
     val measurements = (1 to scala.math.max(1,conf.num_measurements()))
       .map(_ => timingInMs( () => {
       // Use partitionedUsers here
@@ -71,7 +93,7 @@ object Approximate {
     }))
     val mae = measurements(0)._1
     val timings = measurements.map(_._2)
-
+    
     // Save answers as JSON
     def printToFile(content: String,
                     location: String = "./answers.json") =
@@ -122,10 +144,12 @@ object Approximate {
         printToFile(json, jsonFile)
       }
     }
+    */
 
     println("")
     spark.stop()
   } 
+
 }
 
 }
