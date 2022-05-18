@@ -24,8 +24,9 @@ package economics {
       val RPi_buying_cost = 108.48
       val RPi_RAM = 8
       val ICCM7_RAM = 24 * 64
-      val ICCM7_CPU = 2 * 14 * 2.6
-      val RPi_CPU = 4 * 1.5
+      val ICCM7_CPU = 2 * 14
+      val RPi_CPU = 4
+      val Intel_To_Rpi_Core_Throughput = 4 *  RPi_CPU  //Throughput of 1 single Intel CPU physical core (vCPU) ~ 4 Raspberry Pis 4
       val Container_RAM_RPi_Daily = 0.00000016 * 86400 * 4 * RPi_RAM
       val Container_CPU_RPi_Daily = 0.00000114 * 86400
       val x4RPi_Daily_Idle = 4 * 0.003 * 0.25 * 24
@@ -34,12 +35,12 @@ package economics {
       val days_less_expensive = math.ceil(ICCM7_buying_cost / ICCM7_renting_cost)
 
       val Container_Daily_Cost = Container_RAM_RPi_Daily + Container_CPU_RPi_Daily
-      val MinRentingDaysIdleRPiPower = math.round((4 * RPi_buying_cost)/(Container_Daily_Cost - x4RPi_Daily_Idle)) //here guys use ceil, but in task it's said "(Round up to the nearest integer in each case)"
-      val MinRentingDaysComputingRPiPower = math.round((4 * RPi_buying_cost)/(Container_Daily_Cost - x4RPi_Daily_Computing)) //here guys use ceil, but in task it's said "(Round up to the nearest integer in each case)"
+      val MinRentingDaysIdleRPiPower = math.ceil((4 * RPi_buying_cost)/(Container_Daily_Cost - x4RPi_Daily_Idle))
+      val MinRentingDaysComputingRPiPower = math.ceil((4 * RPi_buying_cost)/(Container_Daily_Cost - x4RPi_Daily_Computing))
 
       val RPi_equal_ICCM7 = math.floor(ICCM7_buying_cost/RPi_buying_cost)
       val RPi_RAM_ICCM7 = (RPi_equal_ICCM7 * RPi_RAM) / ICCM7_RAM
-      val RPi_CPU_ICCM7 = (RPi_equal_ICCM7 * RPi_CPU) / ICCM7_CPU //Or rpi_equal/4/28 
+      val RPi_CPU_ICCM7 = (RPi_equal_ICCM7 * RPi_CPU) / (ICCM7_CPU * Intel_To_Rpi_Core_Throughput)
 
 
       // Save answers as JSON
