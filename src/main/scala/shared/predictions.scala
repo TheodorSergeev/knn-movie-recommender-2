@@ -365,8 +365,6 @@ package object predictions
         kSim.update(v, userSim(v))
       }
 
-      // set self-similarity to zero (again?)
-      kSim(userId) = 0
       kSim
     }
     

@@ -63,8 +63,7 @@ package distributed {
 
       println("--- k = 10 ---")
 
-      val top_k = 10
-      val full_pred = knnFullPredictionSpark(train, test, top_k, sc)
+      val full_pred = knnFullPredictionSpark(train, test, conf_k, sc)
 
 
       val knn_similarities = full_pred._1
