@@ -66,20 +66,12 @@ object Approximate {
       conf.replication()
     )
 
-    val top_k = 10
+    val top_k = 300
     val approxRes = tmp_approxKnnFullPredictionSpark(train, test, top_k, sc, conf.partitions(), conf.replication())
     val approxSims = approxRes._1
     val approxPreds = approxRes._2
 
-    /* // debug part=repl=1 
-    val sim_1_1   = approxSims(1 - 1, 1 - 1)
-    val sim_1_864 = approxSims(1 - 1, 864 - 1)
-    val sim_1_886 = approxSims(1 - 1, 886 - 1)
-
-    println(sim_1_1)
-    println(sim_1_864)
-    println(sim_1_886)*/
-
+    
     val sim_1_1   = approxSims(1 - 1, 1 - 1)
     val sim_1_864 = approxSims(1 - 1, 864 - 1)
     val sim_1_344 = approxSims(1 - 1, 344 - 1)
@@ -93,7 +85,6 @@ object Approximate {
     println(sim_1_16)
     println(sim_1_334)
     println(sim_1_2)
-
 
     //val mae_10 = compMatrMAE(test, approxPreds)
     //println(mae_10)
