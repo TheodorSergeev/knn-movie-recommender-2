@@ -439,108 +439,114 @@ package object predictions
   //================================================================================================
   //========================================= Approximate ==========================================
   //================================================================================================
+ 
+  // type for the broadcasted similarities matrix
+  type BrCSCMatrix = org.apache.spark.broadcast.Broadcast[CSCMatrix[Double]]
+
+  // zero-out self similarities
+  def zeroSelfSim(matrSim: CSCMatrix[Double]) = {
+    var i = 0
+    while (i < matrSim.rows) {
+      matrSim(i, i) = 0.0
+      i += 1
+    }
+  }
+
+  // build preprocessed matrix for a partition
+  def createPartMatr(fullPreprocMatr: CSCMatrix[Double], userSet: Set[Int]): CSCMatrix[Double] = {
+    val userList = userSet.toList.sorted
+    val userNum = userList.length
+
+    val builder = new CSCMatrix.Builder[Double](rows = userNum, cols = userNum)
+
+    var i = 0
+    var j = 0
+
+    while (i < userNum) {
+      while (j < userNum) {
+        val x = userList(i)
+        val y = userList(j)
+
+        builder.add(i, j, fullPreprocMatr(x, y))
+        j += 1
+      }
+
+      j = 0
+      i += 1
+    }
+    
+    val partSimMatrix = builder.result()
+    return partSimMatrix
+  }
+
+
+  def partKnn(partId: Int, brodcastedPreprocMatr: BrCSCMatrix, k: Int, numPartitions: Int, numRepl: Int): CSCMatrix[Double] = {
+    val fullPreprocMatr = brodcastedPreprocMatr.value
+    val fullNumUsers = fullPreprocMatr.rows
+    val userSet = partitionUsers(fullNumUsers, numPartitions, numRepl)(partId) // todo: this can be done more efficiently probably
+
+    // debug part=repl=1 (check if problem is in createPartMatr)
+    //val partMatr = fullPreprocMatr
+    
+    val partMatr = createPartMatr(fullPreprocMatr, userSet)  // build partition matrix
+    val partSim = matrProd(partMatr, partMatr.t)             // compute similarities for the partition
+    zeroSelfSim(partSim)                                     // set self-similarities to zero
+    
+    // select top k similarities
+    val topSims = new CSCMatrix.Builder[Double](rows=partSim.rows, cols=partSim.cols)
+
+    // todo: check if k < size of the matrix
+    var userId = 0
+    while (userId < partSim.rows) {
+      val userDistances = partSim(0 until partSim.rows, userId).toDenseVector
+
+      for (topNeighbor <- argtopk(userDistances, k)) {
+        topSims.add(userId, topNeighbor, userDistances(topNeighbor))
+      }
+
+      userId += 1
+    }
+    
+    return topSims.result()
+  }
 
   def approxKNNComputations(X: CSCMatrix[Double], sc: SparkContext, k: Int, numPartitions: Int, numRepl: Int): CSCMatrix[Double] = {
     val numUsers = X.rows
     val preproc = preprocDataset(X)
 
-    // partition users across partitions
-    val partitionIdx = partitionUsers(numUsers, numPartitions, numRepl) // Seq[Set[Int]]
-    // todo = convert to seq of seq for reliable indexing
+    val brodcastedPreprocMatr = sc.broadcast(preproc) // todo: how to pass this to every node only the sub-matrix it needs?
 
-    // find the preprocessed ratings that belong on the partition
-    // val usersOnPartition = partitionIdx(partitionId) 
-    // val preprocOnPartition = preproc(usersOnPartition) 
-
-    // send the preprocessed ratings to all workers
-    // todo: how to pass this to every node only the sub-matrix it needs?
-    val shared_preproc = sc.broadcast(preproc)
-    //val shared_partitionIdx = sc.broadcast(partitionIdx)
-
-    // select top similarities for partitionId
-    def partitionTopK(partitionId: Int): CSCMatrix[Double] = {
-      // todo: how to pass this to every node only the sub-matrix it needs?
-      val partitionIdx = partitionUsers(numUsers, numPartitions, numRepl)
-      val local_partitionIdx = partitionIdx(partitionId).toList
-      //val local_partitionIdx = shared_partitionIdx.value(partitionId).toList
-      val brPreproc = shared_preproc.value
-
-      // build partition matrix (should be passed to the process)
-      val builder = new CSCMatrix.Builder[Double](
-        rows = local_partitionIdx.length, cols = local_partitionIdx.length
-      )
-
-      var i = 0
-      var j = 0
-
-      while (i < local_partitionIdx.length) {
-        while (j < local_partitionIdx.length) {
-          val x = local_partitionIdx(i)
-          val y = local_partitionIdx(j)
-          builder.add(i, j, brPreproc(i, j))
-          j += 1
-        }
-
-        j = 0
-        i += 1
-      }
-      
-      val local_preprocOnPartition = builder.result()
-
-
-      // compute similarities for the partition
-      val partitionSim = matrProd(local_preprocOnPartition, local_preprocOnPartition.t)
-
-      // set self-similarities to zero
-      i = 0
-      while (i < local_preprocOnPartition.rows) {
-        local_preprocOnPartition(i, i) = 0.0
-        i += 1
-      }
-
-      // select top k similarities
-      val topSims = new CSCMatrix.Builder[Double](
-        rows=local_preprocOnPartition.rows, cols=local_preprocOnPartition.cols
-      )
-
-      var userId = 0
-      while (userId < local_preprocOnPartition.rows) {
-        val userDistances = local_preprocOnPartition(0 until local_preprocOnPartition.rows, userId).toDenseVector
-
-        for (topNeighbor <- argtopk(userDistances, k)) {
-          topSims.add(userId, topNeighbor, userDistances(topNeighbor))
-        }
-
-        userId += 1
-      }
-      
-      topSims.result()
-    }
-    
     // parallelize top similarities computation
     val kSims = sc
       .parallelize(0 until numPartitions)
-      .map(partitionTopK)
+      .map(i => partKnn(i, brodcastedPreprocMatr, k, numPartitions, numRepl))
       .collect()
+    
+    // debug part=repl=1 (check if the problem is in partKnn)
+    //val user_avg_vec = userAvgMap(X)
+    //val scaled_rating = normalizedDevMatrix(X, user_avg_vec) // user-specific weighted-sum deviation matrix
+    //val kSims = computeKnnSimilarities(scaled_rating, k)
 
     // form the similarities matrix
     val fullSims = new CSCMatrix.Builder[Double](rows = numUsers, cols = numUsers)
     
+    val userSets = partitionUsers(numUsers, numPartitions, numRepl)
+
     for(partitionId <- 0 until numPartitions) {
       // extract similarities calculated on partition
-      val usersOnPartition = partitionIdx(partitionId).toList   
+      val usersOnPartition = userSets(partitionId).toList.sorted 
       val simsOnPartition = kSims(partitionId)
 
       // put them in the general matrix for correct users
       for ((k, v) <- simsOnPartition.activeIterator) {
-        val x: Int = usersOnPartition(k._1)
-        val y: Int = k._2
-        // todo: check if already exisits?
-        fullSims.add(x, usersOnPartition(y), v)
+        val x = usersOnPartition(k._1)
+        val y = usersOnPartition(k._2)
+
+        fullSims.add(x, y, v) // todo: check if already exisits?
       }
     }
 
-    fullSims.result()
+    return fullSims.result()
   }
 
   // todo: this function is the same as knnFullPrediction except for one call
@@ -561,7 +567,7 @@ package object predictions
 
     // --- similarities ---
     val scaled_rating = normalizedDevMatrix(dataset_train, user_avg_vec) // user-specific weighted-sum deviation matrix
-    val top_sims = approxKNNComputations(dataset_train, sc, k, numPartitions, numRepl)
+    val top_sims = approxKNNComputations(scaled_rating, sc, k, numPartitions, numRepl)
 
 
     // --- nominator ---
@@ -574,7 +580,7 @@ package object predictions
     // prediction
     val builder = new CSCMatrix.Builder[Double](rows=dataset_train.rows, cols=dataset_train.cols)
 
-    var user_id = 0
+    /*var user_id = 0
     var item_id = 0
 
     while (user_id < dataset_train.rows) {
@@ -594,7 +600,7 @@ package object predictions
 
       item_id = 0
       user_id += 1
-    }
+    }*/
 
     val pred_test = builder.result()
     return (top_sims, pred_test)

@@ -71,19 +71,32 @@ object Approximate {
     val approxSims = approxRes._1
     val approxPreds = approxRes._2
 
+    /* // debug part=repl=1 
     val sim_1_1   = approxSims(1 - 1, 1 - 1)
     val sim_1_864 = approxSims(1 - 1, 864 - 1)
     val sim_1_886 = approxSims(1 - 1, 886 - 1)
-    val pred_1_1   = approxPreds(1 - 1, 1 - 1)
-    val pred_327_2 = approxPreds(327 - 1, 2 - 1)
-    val mae_10 = compMatrMAE(test, approxPreds)
 
     println(sim_1_1)
     println(sim_1_864)
-    println(sim_1_886)
-    println(pred_1_1)
-    println(pred_327_2)
-    println(mae_10)
+    println(sim_1_886)*/
+
+    val sim_1_1   = approxSims(1 - 1, 1 - 1)
+    val sim_1_864 = approxSims(1 - 1, 864 - 1)
+    val sim_1_344 = approxSims(1 - 1, 344 - 1)
+    val sim_1_16  = approxSims(1 - 1, 334 - 1)
+    val sim_1_334 = approxSims(1 - 1, 16  - 1)
+    val sim_1_2   = approxSims(1 - 1, 2   - 1)
+
+    println(sim_1_1)
+    println(sim_1_864)
+    println(sim_1_344)
+    println(sim_1_16)
+    println(sim_1_334)
+    println(sim_1_2)
+
+
+    //val mae_10 = compMatrMAE(test, approxPreds)
+    //println(mae_10)
 
     /*
     val measurements = (1 to scala.math.max(1,conf.num_measurements()))
