@@ -83,8 +83,8 @@ object Approximate {
     val sim_1_1   = approxSims(1 - 1, 1 - 1)
     val sim_1_864 = approxSims(1 - 1, 864 - 1)
     val sim_1_344 = approxSims(1 - 1, 344 - 1)
-    val sim_1_16  = approxSims(1 - 1, 334 - 1)
-    val sim_1_334 = approxSims(1 - 1, 16  - 1)
+    val sim_1_16  = approxSims(1 - 1, 16  - 1)
+    val sim_1_334 = approxSims(1 - 1, 334 - 1)
     val sim_1_2   = approxSims(1 - 1, 2   - 1)
 
     println(sim_1_1)
