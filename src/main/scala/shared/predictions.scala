@@ -516,23 +516,22 @@ package object predictions
   // type for the broadcasted similarities matrix
   type BrCSCMatrix = org.apache.spark.broadcast.Broadcast[CSCMatrix[Double]]
 
-  // build preprocessed matrix for a partition
-  def createPartMatr(fullMatr: CSCMatrix[Double], userSet: Set[Int]): CSCMatrix[Double] = {
-    val userList = userSet.toList.sorted
+  // build preprocessed rating matrix for a partition
+  def createPartMatr(fullRatingMatr: CSCMatrix[Double], userList: List[Int]): CSCMatrix[Double] = {
     val userNum = userList.length
 
-    val builder = new CSCMatrix.Builder[Double](rows=userNum, cols=userNum)
+    val builder = new CSCMatrix.Builder[Double](rows=userNum, cols=fullRatingMatr.cols)
 
     var i = 0
     var j = 0
 
     while (i < userNum) {
-      val x = userList(i)  // no need to account for different indexing in the dataset
+      // select rows corresponding to users
+      val x = userList(i)
 
-      while (j < userNum) {
-        val y = userList(j)  // no need to account for different indexing in the dataset
-
-        builder.add(i, j, fullMatr(x, y))
+      while (j < fullRatingMatr.cols) {
+        // copy ratings
+        builder.add(i, j, fullRatingMatr(x, j))
         j += 1
       }
 
@@ -540,16 +539,12 @@ package object predictions
       i += 1
     }
     
-    val partSimMatrix = builder.result()
-    return partSimMatrix
+    val partRatingMatrix = builder.result()
+    return partRatingMatrix
   }
 
 
   def partKnn(partMatr: CSCMatrix[Double], k: Int): CSCMatrix[Double] = {
-    // version that only computes only knn on partitions
-    //val sims = computeSimsOnly(fullPreprocMatr)
-    //val partSims = createPartMatr(sims, userSet)
-
     // version that computes both knn and similarities on partitions
     val partSims = computeSimsOnly(partMatr)
     val partKnn = computeKnnOnly(partSims, k)
@@ -560,10 +555,11 @@ package object predictions
     val numUsers = scaledRatings.rows
     
     val preproc = preprocDataset(scaledRatings)
-
     val userSets = partitionUsers(numUsers, numPartitions, numRepl)
-    val partMatrices = (0 until numPartitions).map(i => createPartMatr(preproc, userSets(i)))
-
+    
+    val users = (0 until numUsers).toList
+    val partMatrices = (0 until numPartitions).map(i => createPartMatr(preproc, userSets(i).toList.sorted))
+    
     val brodcastedPartMatr = sc.broadcast(partMatrices) // todo: how to pass this to every node only the sub-matrix it needs?
 
     // parallelize top similarities computation
