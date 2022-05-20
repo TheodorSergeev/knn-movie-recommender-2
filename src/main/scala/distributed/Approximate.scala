@@ -1,4 +1,12 @@
-// sbt "runMain distributed.Approximate --train data/ml-100k/u2.base --test data/ml-100k/u2.test --json approximate-100k-4-k10-r2.json --master local[4] --users 943 --movies 1682 --num_measurements 3 --k 10 --partitions 10 --replication 2"
+/*
+sbt "runMain distributed.Approximate --train data/ml-100k/u2.base --test data/ml-100k/u2.test --json approximate-100k-4-k10-r2.json --master local[4] --users 943 --movies 1682 --num_measurements 3 --k 10 --partitions 10 --replication 2"
+sbt "runMain distributed.Approximate --train data/ml-100k/u2.base --test data/ml-100k/u2.test --json approximate-100k-4-k300-r1.json --master local[4] --users 943 --movies 1682 --num_measurements 3 --k 300 --partitions 10 --replication 1"
+sbt "runMain distributed.Approximate --train data/ml-100k/u2.base --test data/ml-100k/u2.test --json approximate-100k-4-k300-r2.json --master local[4] --users 943 --movies 1682 --num_measurements 3 --k 300 --partitions 10 --replication 2"
+sbt "runMain distributed.Approximate --train data/ml-100k/u2.base --test data/ml-100k/u2.test --json approximate-100k-4-k300-r3.json --master local[4] --users 943 --movies 1682 --num_measurements 3 --k 300 --partitions 10 --replication 3"
+sbt "runMain distributed.Approximate --train data/ml-100k/u2.base --test data/ml-100k/u2.test --json approximate-100k-4-k300-r4.json --master local[4] --users 943 --movies 1682 --num_measurements 3 --k 300 --partitions 10 --replication 4"
+sbt "runMain distributed.Approximate --train data/ml-100k/u2.base --test data/ml-100k/u2.test --json approximate-100k-4-k300-r6.json --master local[4] --users 943 --movies 1682 --num_measurements 3 --k 300 --partitions 10 --replication 6"
+sbt "runMain distributed.Approximate --train data/ml-100k/u2.base --test data/ml-100k/u2.test --json approximate-100k-4-k300-r8.json --master local[4] --users 943 --movies 1682 --num_measurements 3 --k 300 --partitions 10 --replication 8"
+*/
 import org.rogach.scallop._
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
