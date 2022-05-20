@@ -1,4 +1,4 @@
-// sbt "runMain distributed.Approximate --train data/ml-100k/u2.base --test data/ml-100k/u2.test --json approximate-100k-4-k10-r2.json --k 10 --master local[4] --users 943 --movies 1682 --partitions 10 --replication 2"
+// sbt "runMain distributed.Approximate --train data/ml-100k/u2.base --test data/ml-100k/u2.test --json approximate-100k-4-k10-r2.json --master local[4] --users 943 --movies 1682 --num_measurements 3 --k 10 --partitions 10 --replication 2"
 import org.rogach.scallop._
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
@@ -66,8 +66,8 @@ object Approximate {
       conf.replication()
     )
 
-    val top_k = 10
-    val approxRes = tmp_approxKnnFullPredictionSpark(train, test, top_k, sc, conf.partitions(), conf.replication())
+    val top_k = conf.k()
+    val approxRes = approxKnnFullPredictionSpark(train, test, top_k, sc, partitionedUsers)
     val approxSims = approxRes._1
     val approxPreds = approxRes._2
 
@@ -86,14 +86,11 @@ object Approximate {
     println(sim_1_334)
     println(sim_1_2)
 
-    val mae_10 = compMatrMAE(test, approxPreds)
-    println(mae_10)
-
-    /*
     val measurements = (1 to scala.math.max(1,conf.num_measurements()))
       .map(_ => timingInMs( () => {
       // Use partitionedUsers here
-      0.0
+      val preds = approxKnnFullPredictionSpark(train, test, top_k, sc, partitionedUsers)._2
+      compMatrMAE(test, preds)
     }))
     val mae = measurements(0)._1
     val timings = measurements.map(_._2)
@@ -126,12 +123,12 @@ object Approximate {
             "replication" -> ujson.Num(conf.replication()) 
           ),
           "AK.1" -> ujson.Obj(
-            "knn_u1v1" -> ujson.Num(0.0),
-            "knn_u1v864" -> ujson.Num(0.0),
-            "knn_u1v344" -> ujson.Num(0.0),
-            "knn_u1v16" -> ujson.Num(0.0),
-            "knn_u1v334" -> ujson.Num(0.0),
-            "knn_u1v2" -> ujson.Num(0.0)
+            "knn_u1v1" -> ujson.Num(sim_1_1),
+            "knn_u1v864" -> ujson.Num(sim_1_864),
+            "knn_u1v344" -> ujson.Num(sim_1_344),
+            "knn_u1v16" -> ujson.Num(sim_1_16),
+            "knn_u1v334" -> ujson.Num(sim_1_334),
+            "knn_u1v2" -> ujson.Num(sim_1_2)
           ),
           "AK.2" -> ujson.Obj(
             "mae" -> ujson.Num(mae) 
@@ -148,7 +145,6 @@ object Approximate {
         printToFile(json, jsonFile)
       }
     }
-    */
 
     println("")
     spark.stop()

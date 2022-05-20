@@ -551,11 +551,12 @@ package object predictions
     return partKnn
   }
 
-  def approxKNNComputations(scaledRatings: CSCMatrix[Double], sc: SparkContext, k: Int, numPartitions: Int, numRepl: Int): CSCMatrix[Double] = {
+  def approxKNNComputations(scaledRatings: CSCMatrix[Double], sc: SparkContext, k: Int, partitionedUsers: Seq[Set[Int]]): CSCMatrix[Double] = {
     val numUsers = scaledRatings.rows
     
     val preproc = preprocDataset(scaledRatings)
-    val userSets = partitionUsers(numUsers, numPartitions, numRepl)
+    val userSets = partitionedUsers // partitionUsers(numUsers, numPartitions, numRepl)
+    val numPartitions = userSets.length
     
     val users = (0 until numUsers).toList
     val partMatrices = (0 until numPartitions).map(i => createPartMatr(preproc, userSets(i).toList.sorted))
@@ -581,7 +582,7 @@ package object predictions
         val x = usersOnPartition(k._1)
         val y = usersOnPartition(k._2)
 
-        fullSims(x, y) = scala.math.max(fullSims(x, y), v)
+        fullSims(x, y) = v // scala.math.max(fullSims(x, y), v)
       }
     }
 
@@ -590,13 +591,12 @@ package object predictions
 
   // todo: this function is the same as knnFullPrediction except for one call
   // => make knn computation function a parameter
-  def tmp_approxKnnFullPredictionSpark(
+  def approxKnnFullPredictionSpark(
     dataset_train: CSCMatrix[Double], 
     dataset_test: CSCMatrix[Double], 
     k: Int, 
     sc: SparkContext,
-    numPartitions: Int,
-    numRepl: Int
+    partitionedUsers: Seq[Set[Int]]
   ): (CSCMatrix[Double], CSCMatrix[Double]) = {
     var start = 0.0
     var end = 0.0
@@ -607,7 +607,7 @@ package object predictions
     // --- similarities ---
 
     val scaled_rating = normalizedDevMatrix(dataset_train, user_avg_vec) // user-specific weighted-sum deviation matrix
-    val top_sims = approxKNNComputations(scaled_rating, sc, k, numPartitions, numRepl)
+    val top_sims = approxKNNComputations(scaled_rating, sc, k, partitionedUsers)
 
     // --- nominator ---
     val nominator = matrProd(top_sims, scaled_rating)

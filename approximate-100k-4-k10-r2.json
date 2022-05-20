@@ -1,0 +1,29 @@
+{
+    "Meta": {
+        "train": "data/ml-100k/u2.base",
+        "test": "data/ml-100k/u2.test",
+        "k": 10,
+        "users": 943,
+        "movies": 1682,
+        "master": "local[4]",
+        "num-executors": "",
+        "num_measurements": 3,
+        "partitions": 10,
+        "replication": 2
+    },
+    "AK.1": {
+        "knn_u1v1": 0,
+        "knn_u1v864": 0,
+        "knn_u1v344": 0.23659364388510976,
+        "knn_u1v16": 0.18575642238808096,
+        "knn_u1v334": 0.19282239907090362,
+        "knn_u1v2": 0
+    },
+    "AK.2": {
+        "mae": 0.8119803109265535
+    },
+    "AK.3": {
+        "average (ms)": 1408.8726333333334,
+        "stddev (ms)": 74.79208777182843
+    }
+}
