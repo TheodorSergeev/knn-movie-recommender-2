@@ -543,8 +543,8 @@ package object predictions
       .collect()
 
     // form the similarities matrix
-    val fullSims = CSCMatrix.zeros[Double](rows=numUsers, cols=numUsers)
-    
+    val fullSims = new CSCMatrix.Builder[Double](rows=numUsers, cols=numUsers)
+
     for(partitionId <- 0 until numPartitions) {
       // extract similarities calculated on partition
       val usersOnPartition = userSets(partitionId).toList.sorted 
@@ -554,12 +554,11 @@ package object predictions
       for ((k, v) <- simsOnPartition.activeIterator) {
         val x = usersOnPartition(k._1)
         val y = usersOnPartition(k._2)
-
-        fullSims(x, y) = scala.math.max(fullSims(x, y), v) //v
+        fullSims.add(x,y,v)
       }
     }
 
-    return fullSims
+    return fullSims.result
   }
 
   // predictions and similarities for all users and all items of the test set with spark and partitioning

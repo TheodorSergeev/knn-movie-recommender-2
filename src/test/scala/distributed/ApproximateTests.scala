@@ -62,18 +62,18 @@ class ApproximateTests extends AnyFunSuite with BeforeAndAfterAll {
      assert(within(sim_1_864, 0.0, 0.0001))
 
      // Similarity between user 1 and 344
-     assert(within(sim_1_344, 0.0, 0.0001))
+     assert(within(sim_1_344, 0.2365, 0.0001))
 
      // Similarity between user 1 and 16
-     assert(within(sim_1_16, 0.0, 0.0001))
+     assert(within(sim_1_16, 0.1857, 0.0001))
 
      // Similarity between user 1 and 334
-     assert(within(sim_1_334, 0.0, 0.0001))
+     assert(within(sim_1_334, 0.1928, 0.0001))
 
      // Similarity between user 1 and 2
-     assert(within(sim_1_2, 0.0, 0.0001))
+     assert(within(sim_1_2, 0.0730, 0.0001))
 
      // MAE on test
-     assert(within(1.0, 0.0, 0.0001))
+     assert(within(mae, 0.7548, 0.0001))
    } 
 }
