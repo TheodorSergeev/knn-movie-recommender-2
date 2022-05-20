@@ -56,42 +56,24 @@ package distributed {
       val train = loadSpark(sc, conf.train(), conf.separator(), conf.users(), conf.movies())
       val test = loadSpark(sc, conf.test(), conf.separator(), conf.users(), conf.movies())
 
-      /*val measurements = (1 to scala.math.max(1,conf.num_measurements())).map(_ => timingInMs( () => {
-        0.0
-      }))
-      val timings = measurements.map(_._2)*/
+      val full_pred = knnFullPredictionSpark(train, conf_k, sc)
 
-      println("--- k = 10 ---")
-
-      val full_pred = knnFullPredictionSpark(train, test, conf_k, sc)
-
-
+      // compute similarities for individual users
       val knn_similarities = full_pred._1
       val sim_1_1   = knn_similarities(1 - 1, 1 - 1)
       val sim_1_864 = knn_similarities(1 - 1, 864 - 1)
       val sim_1_886 = knn_similarities(1 - 1, 886 - 1)
 
-      println(sim_1_1)
-      println(sim_1_864)
-      println(sim_1_886)
-
+      // predictions for individual users
       val rating_pred = full_pred._2
       val pred_1_1   = rating_pred(1 - 1, 1 - 1)
       val pred_327_2 = rating_pred(327 - 1, 2 - 1)
 
-      println(pred_1_1)
-      println(pred_327_2)
+      //mae
+      val mae = compMatrMAE(test, rating_pred)
 
-
-      // mae
-      val mae_10 = compMatrMAE(test, rating_pred)
-      println(mae_10)
-
-      println("--- k = 300 ---")
-
-      val large_top_k = 300
       val measurements = (1 to conf.num_measurements()).map(x => timingInMs(() => {
-        compMatrMAE(test, knnFullPredictionSpark(train, test, large_top_k, sc)._2)
+        compMatrMAE(test, knnFullPredictionSpark(train, conf_k, sc)._2)
       }))
       val timings = measurements.map(t => t._2)
       println(mean(timings))
@@ -129,7 +111,7 @@ package distributed {
               "3.knn_u1v886" -> ujson.Num(sim_1_886),
               "4.PredUser1Item1" -> ujson.Num(pred_1_1),
               "5.PredUser327Item2" -> ujson.Num(pred_327_2),
-              "6.Mae" -> ujson.Num(mae_10)
+              "6.Mae" -> ujson.Num(mae)
             ),
             "EK.2" ->  ujson.Obj(
               "average (ms)" -> ujson.Num(mean(timings)), // Datatype of answer: Double

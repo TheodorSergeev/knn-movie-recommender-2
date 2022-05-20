@@ -48,13 +48,10 @@ package scaling {
     val test  = loadSpark(sc, conf.test (), conf.separator(), conf.users(), conf.movies())
 
 
-    // todo: move the "-1" for breeze indexing somewhere
-
     // --- k = 10 ---
-    println("--- k = 10 ---")
 
     val top_k = 10
-    val full_pred = knnFullPrediction(train, test, top_k)
+    val full_pred = knnFullPrediction(train, top_k)
 
     // compute similarities for individual users
     val knn_similarities = full_pred._1
@@ -62,36 +59,26 @@ package scaling {
     val sim_1_864 = knn_similarities(1 - 1, 864 - 1)
     val sim_1_886 = knn_similarities(1 - 1, 886 - 1)
 
-    println(sim_1_1)
-    println(sim_1_864)
-    println(sim_1_886)
 
-
-    // predictions for indivisual users
+    // predictions for individual users
     val rating_pred = full_pred._2
     val pred_1_1   = rating_pred(1 - 1, 1 - 1)
     val pred_327_2 = rating_pred(327 - 1, 2 - 1)
-  
-    println(pred_1_1)
-    println(pred_327_2)
 
 
     // mae
     val mae_10 = compMatrMAE(test, rating_pred)
-    println(mae_10)
 
 
     // --- k = 300 ---
-    println("--- k = 300 ---")
 
     // measure the speed of prediction and MAE calculation for k = 300
     val large_top_k = 300
     val measurements = (1 to conf.num_measurements()).map(x => timingInMs(() => {
-      compMatrMAE(test, knnFullPrediction(train, test, large_top_k)._2)
+      compMatrMAE(test, knnFullPrediction(train, large_top_k)._2)
     }))
     val timings = measurements.map(t => t._2)
     val mae_300 = measurements(0)._1
-    println(mean(timings))
 
     // Save answers as JSON
     def printToFile(content: String, location: String = "./answers.json") =

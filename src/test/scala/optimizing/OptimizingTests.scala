@@ -29,7 +29,7 @@ class OptimizingTests extends AnyFunSuite with BeforeAndAfterAll {
    // decimal after the (floating) point, on data/ml-100k/u2.base (as loaded above).
    test("kNN predictor with k=10") { 
     val top_k = 10
-    val full_pred = knnFullPrediction(train2, test2, top_k)
+    val full_pred = knnFullPrediction(train2, top_k)
     val knn_similarities = full_pred._1
     val rating_pred = full_pred._2
 

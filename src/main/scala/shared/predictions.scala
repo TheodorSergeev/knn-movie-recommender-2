@@ -99,7 +99,7 @@ package object predictions
    
 
   //================================================================================================
-  //============================================= KNN ==============================================
+  //============================================= Optimizing =======================================
   //================================================================================================
 
   // --- Utility and math ---
@@ -136,7 +136,7 @@ package object predictions
     var usr_rating_num = DenseVector.zeros[Double](num_users)
 
     for ((k,v) <- dataset.activeIterator) {
-      // val usr_id = k._1
+
       sum_usr_rating(k._1) += v
       usr_rating_num(k._1) += 1
     }
@@ -168,13 +168,12 @@ package object predictions
     
     val builder = new CSCMatrix.Builder[Double](rows=matr1.rows, cols=matr2.cols)
 
-    // todo: speed up
     var x = 0
     var y = 0
 
     while (x < matr2.cols) {
       val mult = matr1 * matr2(0 to matr2.rows - 1, x).toDenseVector 
-      // toDenseVector is a major speedup
+
 
       while (y < matr1.rows) {
         builder.add(y, x, mult(y))
@@ -186,9 +185,7 @@ package object predictions
     }
     
     return builder.result()
-    
-    // memory issues
-    // return matr1 * matr2
+
   }
 
 
@@ -228,17 +225,12 @@ package object predictions
     var start = 0.0
     var end = 0.0    
 
-    //start = System.nanoTime() 
-    val preproc_dataset = preprocDataset(scaled_rating)   
-    //println("preprocess ", (System.nanoTime() - start) / 1e9)
+    val preproc_dataset = preprocDataset(scaled_rating)
 
-    //start = System.nanoTime() 
     val all_sims = matrProd(preproc_dataset, preproc_dataset.t) // compute cosine similarities
-    //println("all sims ", (System.nanoTime() - start) / 1e9)
 
     val userNum = preproc_dataset.rows
 
-    //start = System.nanoTime() 
     // zero-out self similarities
     var i = 0
     while (i < userNum) {
@@ -263,7 +255,6 @@ package object predictions
 
       user_id += 1
     }
-    //println("top k ", (System.nanoTime() - start) / 1e9)
 
     return top_sims.result()
   }
@@ -271,36 +262,24 @@ package object predictions
 
   // --- Knn ---
 
-  // todo: remove dataset_test from parameters (it is left from an older version)
-  // predict for all users and all items of the test set
-  def knnFullPrediction(dataset_train: CSCMatrix[Double], dataset_test: CSCMatrix[Double], k: Int): (CSCMatrix[Double], CSCMatrix[Double]) = {
-    var start = 0.0
-    var end = 0.0    
+  // predictions and similarities for all users and all items of the test set
+  def knnFullPrediction(dataset_train: CSCMatrix[Double], k: Int): (CSCMatrix[Double], CSCMatrix[Double]) = {
     
-    // --- user averages --- 
-    //start = System.nanoTime() 
+    // --- user averages ---
     val user_avg_vec = userAvgMap(dataset_train)
-    //println("user_avg_vec ", (System.nanoTime() - start) / 1e9)
 
-    // --- similarities --- 
-    //start = System.nanoTime() 
+    // --- similarities ---
     val scaled_rating = normalizedDevMatrix(dataset_train, user_avg_vec) // user-specific weighted-sum deviation matrix
     val top_sims = computeKnnSimilarities(scaled_rating, k)
-    //println("top sims     ", (System.nanoTime() - start) / 1e9)
 
     // --- nominator ---
-    //start = System.nanoTime() 
     val nominator = matrProd(top_sims, scaled_rating)
-    //println("nominator    ", (System.nanoTime() - start) / 1e9)
 
     // --- denominator ---
-    //start = System.nanoTime() 
     val user_items_if_rated = dataset_train.mapActiveValues(_ => 1.0)
     val denominator = matrProd(abs(top_sims), user_items_if_rated)
-    //println("denominator  ", (System.nanoTime() - start) / 1e9)
 
     // prediction
-    //start = System.nanoTime() 
     val builder = new CSCMatrix.Builder[Double](rows=dataset_train.rows, cols=dataset_train.cols)
 
     var user_id = 0
@@ -326,7 +305,6 @@ package object predictions
     }
 
     val pred_test = builder.result()
-    //println("builder ", (System.nanoTime() - start) / 1e9)
     return (top_sims, pred_test)
   }
 
@@ -389,13 +367,8 @@ package object predictions
     knn.result()
   }
 
-
-  // todo: this function is the same as knnFullPrediction except for one call
-  // => make knn computation function a parameter
-  // or just pass the matrix of similarities as a parameter
-  def knnFullPredictionSpark(dataset_train: CSCMatrix[Double], dataset_test: CSCMatrix[Double], k: Int, sc: SparkContext): (CSCMatrix[Double], CSCMatrix[Double]) = {
-    var start = 0.0
-    var end = 0.0
+  // predictions and similarities for all users and all items of the test set with spark
+  def knnFullPredictionSpark(dataset_train: CSCMatrix[Double], k: Int, sc: SparkContext): (CSCMatrix[Double], CSCMatrix[Double]) = {
 
     // --- user averages ---
     val user_avg_vec = userAvgMap(dataset_train)
@@ -555,13 +528,13 @@ package object predictions
     val numUsers = scaledRatings.rows
     
     val preproc = preprocDataset(scaledRatings)
-    val userSets = partitionedUsers // partitionUsers(numUsers, numPartitions, numRepl)
+    val userSets = partitionedUsers
     val numPartitions = userSets.length
     
     val users = (0 until numUsers).toList
     val partMatrices = (0 until numPartitions).map(i => createPartMatr(preproc, userSets(i).toList.sorted))
     
-    val brodcastedPartMatr = sc.broadcast(partMatrices) // todo: how to pass this to every node only the sub-matrix it needs?
+    val brodcastedPartMatr = sc.broadcast(partMatrices)
 
     // parallelize top similarities computation
     val kSims = sc
@@ -582,24 +555,20 @@ package object predictions
         val x = usersOnPartition(k._1)
         val y = usersOnPartition(k._2)
 
-        fullSims(x, y) = v // scala.math.max(fullSims(x, y), v)
+        fullSims(x, y) = scala.math.max(fullSims(x, y), v) //v
       }
     }
 
-    return fullSims//.result()
+    return fullSims
   }
 
-  // todo: this function is the same as knnFullPrediction except for one call
-  // => make knn computation function a parameter
+  // predictions and similarities for all users and all items of the test set with spark and partitioning
   def approxKnnFullPredictionSpark(
-    dataset_train: CSCMatrix[Double], 
-    dataset_test: CSCMatrix[Double], 
+    dataset_train: CSCMatrix[Double],
     k: Int, 
     sc: SparkContext,
     partitionedUsers: Seq[Set[Int]]
   ): (CSCMatrix[Double], CSCMatrix[Double]) = {
-    var start = 0.0
-    var end = 0.0
 
     // --- user averages ---
     val user_avg_vec = userAvgMap(dataset_train)

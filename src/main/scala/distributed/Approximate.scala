@@ -60,7 +60,6 @@ object Approximate {
     // will be serialized with the parallelize implementations
     val conf_users = conf.users()
     val conf_movies = conf.movies()
-    val conf_k = conf.k()
 
     println("Loading training data")
     val train = loadSpark(sc, conf.train(), conf.separator(), conf.users(), conf.movies())
@@ -75,11 +74,10 @@ object Approximate {
     )
 
     val top_k = conf.k()
-    val approxRes = approxKnnFullPredictionSpark(train, test, top_k, sc, partitionedUsers)
+    val approxRes = approxKnnFullPredictionSpark(train, top_k, sc, partitionedUsers)
     val approxSims = approxRes._1
-    val approxPreds = approxRes._2
 
-    
+    // compute similarities for individual users
     val sim_1_1   = approxSims(1 - 1, 1 - 1)
     val sim_1_864 = approxSims(1 - 1, 864 - 1)
     val sim_1_344 = approxSims(1 - 1, 344 - 1)
@@ -87,17 +85,11 @@ object Approximate {
     val sim_1_334 = approxSims(1 - 1, 334 - 1)
     val sim_1_2   = approxSims(1 - 1, 2   - 1)
 
-    println(sim_1_1)
-    println(sim_1_864)
-    println(sim_1_344)
-    println(sim_1_16)
-    println(sim_1_334)
-    println(sim_1_2)
-
+    // measure the speed of prediction and MAE calculation
     val measurements = (1 to scala.math.max(1,conf.num_measurements()))
       .map(_ => timingInMs( () => {
       // Use partitionedUsers here
-      val preds = approxKnnFullPredictionSpark(train, test, top_k, sc, partitionedUsers)._2
+      val preds = approxKnnFullPredictionSpark(train, top_k, sc, partitionedUsers)._2
       compMatrMAE(test, preds)
     }))
     val mae = measurements(0)._1
