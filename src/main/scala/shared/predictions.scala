@@ -445,6 +445,43 @@ package object predictions
   //========================================= Approximate ==========================================
   //================================================================================================
 
+  def computeSimsOnly(preproc: CSCMatrix[Double]): CSCMatrix[Double] = {
+    // compute cosine similarities
+    val sims = matrProd(preproc, preproc.t) 
+    val userNum = sims.rows
+
+    // zero-out self similarities
+    var i = 0
+    while (i < userNum) {
+      sims(i, i) = 0.0
+      i += 1
+    }
+    
+    return sims
+  }
+
+  def computeKnnOnly(sims: CSCMatrix[Double], k: Int): CSCMatrix[Double] = {
+    val userNum = sims.rows
+    var user_id = 0
+
+    if (k >= userNum)
+      return sims
+
+    val top_sims = new CSCMatrix.Builder[Double](rows=userNum, cols=userNum)
+
+    while (user_id < userNum) {
+      val user_distances = sims(0 to userNum - 1, user_id).toDenseVector
+
+      for (top_neighbor <- argtopk(user_distances, k)) {
+        top_sims.add(user_id, top_neighbor, user_distances(top_neighbor))
+      }
+
+      user_id += 1
+    }
+
+    return top_sims.result()  
+  }
+
   def computeKnnSimFromPreproc(preproc: CSCMatrix[Double], k: Int): CSCMatrix[Double] = {
     val sims = matrProd(preproc, preproc.t) // compute cosine similarities
     val userNum = sims.rows
@@ -512,18 +549,20 @@ package object predictions
     val fullPreprocMatr = brodcastedPreprocMatr.value
     val fullNumUsers = fullPreprocMatr.rows
     val userSet = partitionUsers(fullNumUsers, numPartitions, numRepl)(partId) // todo: this can be done more efficiently probably
-      
-    // todo: issue is somewhere here
-    val partMatr = createPartMatr(fullPreprocMatr, userSet)
-    val partKnn = computeKnnSimFromPreproc(partMatr, k)
-    
-    //debug (select submatrix from a true exact KNN)
-    //val partMatr = computeKnnSimFromPreproc(fullPreprocMatr, k)
-    //val partKnn = createPartMatr(partMatr, userSet)
+     
+    // version that only computes only knn on partitions
+    val sims = computeSimsOnly(fullPreprocMatr)
+    val partSims = createPartMatr(sims, userSet)
+
+    // version that computes both knn and similarities on partitions
+    //val partMatr = createPartMatr(fullPreprocMatr, userSet)
+    //val partSims = computeSimsOnly(partMatr)
+
+    val partKnn = computeKnnOnly(partSims, k)
     return partKnn
   }
 
-  def approxKNNComputations(scaledRatings: CSCMatrix[Double], sc: SparkContext, k: Int, numPartitions: Int, numRepl: Int): CSCMatrix[Double] = {
+  def approxKNNComputations (scaledRatings: CSCMatrix[Double], sc: SparkContext, k: Int, numPartitions: Int, numRepl: Int): CSCMatrix[Double] = {
     val numUsers = scaledRatings.rows
 
     val preproc = preprocDataset(scaledRatings)
@@ -550,7 +589,7 @@ package object predictions
         val x = usersOnPartition(k._1)
         val y = usersOnPartition(k._2)
 
-        fullSims.add(x, y, v) // todo: check if already exisits?
+        fullSims.add(x, y, v)
       }
     }
 
@@ -579,15 +618,15 @@ package object predictions
     val top_sims = approxKNNComputations(scaled_rating, sc, k, numPartitions, numRepl)
 
     // --- nominator ---
-    //val nominator = matrProd(top_sims, scaled_rating)
+    val nominator = matrProd(top_sims, scaled_rating)
 
     // --- denominator ---
-    //val user_items_if_rated = dataset_train.mapActiveValues(_ => 1.0)
-    //val denominator = matrProd(abs(top_sims), user_items_if_rated)
+    val user_items_if_rated = dataset_train.mapActiveValues(_ => 1.0)
+    val denominator = matrProd(abs(top_sims), user_items_if_rated)
 
     // prediction
     val builder = new CSCMatrix.Builder[Double](rows=dataset_train.rows, cols=dataset_train.cols)
-    /*
+    
     var user_id = 0
     var item_id = 0
 
@@ -608,7 +647,7 @@ package object predictions
 
       item_id = 0
       user_id += 1
-    }*/
+    }
 
     val pred_test = builder.result()
     return (top_sims, pred_test)

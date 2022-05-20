@@ -66,7 +66,7 @@ object Approximate {
       conf.replication()
     )
 
-    val top_k = 300
+    val top_k = 10
     val approxRes = tmp_approxKnnFullPredictionSpark(train, test, top_k, sc, conf.partitions(), conf.replication())
     val approxSims = approxRes._1
     val approxPreds = approxRes._2
@@ -86,8 +86,8 @@ object Approximate {
     println(sim_1_334)
     println(sim_1_2)
 
-    //val mae_10 = compMatrMAE(test, approxPreds)
-    //println(mae_10)
+    val mae_10 = compMatrMAE(test, approxPreds)
+    println(mae_10)
 
     /*
     val measurements = (1 to scala.math.max(1,conf.num_measurements()))
