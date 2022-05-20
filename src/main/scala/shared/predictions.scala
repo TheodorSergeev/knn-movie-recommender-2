@@ -545,39 +545,35 @@ package object predictions
   }
 
 
-  def partKnn(partId: Int, brodcastedPreprocMatr: BrCSCMatrix, k: Int, numPartitions: Int, numRepl: Int): CSCMatrix[Double] = {
-    val fullPreprocMatr = brodcastedPreprocMatr.value
-    val fullNumUsers = fullPreprocMatr.rows
-    val userSet = partitionUsers(fullNumUsers, numPartitions, numRepl)(partId) // todo: this can be done more efficiently probably
-     
+  def partKnn(partMatr: CSCMatrix[Double], k: Int): CSCMatrix[Double] = {
     // version that only computes only knn on partitions
-    val sims = computeSimsOnly(fullPreprocMatr)
-    val partSims = createPartMatr(sims, userSet)
+    //val sims = computeSimsOnly(fullPreprocMatr)
+    //val partSims = createPartMatr(sims, userSet)
 
     // version that computes both knn and similarities on partitions
-    //val partMatr = createPartMatr(fullPreprocMatr, userSet)
-    //val partSims = computeSimsOnly(partMatr)
-
+    val partSims = computeSimsOnly(partMatr)
     val partKnn = computeKnnOnly(partSims, k)
     return partKnn
   }
 
-  def approxKNNComputations (scaledRatings: CSCMatrix[Double], sc: SparkContext, k: Int, numPartitions: Int, numRepl: Int): CSCMatrix[Double] = {
+  def approxKNNComputations(scaledRatings: CSCMatrix[Double], sc: SparkContext, k: Int, numPartitions: Int, numRepl: Int): CSCMatrix[Double] = {
     val numUsers = scaledRatings.rows
-
+    
     val preproc = preprocDataset(scaledRatings)
-    val brodcastedPreprocMatr = sc.broadcast(preproc) // todo: how to pass this to every node only the sub-matrix it needs?
+
+    val userSets = partitionUsers(numUsers, numPartitions, numRepl)
+    val partMatrices = (0 until numPartitions).map(i => createPartMatr(preproc, userSets(i)))
+
+    val brodcastedPartMatr = sc.broadcast(partMatrices) // todo: how to pass this to every node only the sub-matrix it needs?
 
     // parallelize top similarities computation
     val kSims = sc
       .parallelize(0 until numPartitions)
-      .map(i => partKnn(i, brodcastedPreprocMatr, k, numPartitions, numRepl))
+      .map(i => partKnn(brodcastedPartMatr.value(i), k))
       .collect()
 
-    val userSets = partitionUsers(numUsers, numPartitions, numRepl)
-
     // form the similarities matrix
-    val fullSims = new CSCMatrix.Builder[Double](rows=numUsers, cols=numUsers)
+    val fullSims = CSCMatrix.zeros[Double](rows=numUsers, cols=numUsers)
     
     for(partitionId <- 0 until numPartitions) {
       // extract similarities calculated on partition
@@ -589,11 +585,11 @@ package object predictions
         val x = usersOnPartition(k._1)
         val y = usersOnPartition(k._2)
 
-        fullSims.add(x, y, v)
+        fullSims(x, y) = scala.math.max(fullSims(x, y), v)
       }
     }
 
-    return fullSims.result()
+    return fullSims//.result()
   }
 
   // todo: this function is the same as knnFullPrediction except for one call
